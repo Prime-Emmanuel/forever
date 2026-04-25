@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from "react-router";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, Menu, X, Smile, MapPin, Activity } from "lucide-react";
+import { Heart, Menu, X, Smile, MapPin, Bell } from "lucide-react";
 import { useAppContext } from '../store/AppContext';
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { db } from "../firebase";
 
 const MOODS = ['Happy', 'Loved', 'Stressed', 'Tired', 'Excited', 'Relaxed'];
 const POSITIONS = ['Home', 'At Work', 'On Site', 'With Friends', 'Meeting', 'Family'];
@@ -13,8 +15,23 @@ export function TopNav() {
   const { currentUser, updateProfile } = useAppContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [activityCount, setActivityCount] = useState(0);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Activity badge listener
+  useEffect(() => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const q = query(
+      collection(db, "activities"),
+      where("createdAt", ">", yesterday),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setActivityCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -79,6 +96,16 @@ export function TopNav() {
             
             {currentUser && (
               <div className="ml-4 pl-4 border-l border-white/10 flex items-center gap-3 relative">
+                {/* Activity Bell */}
+                <button className="relative p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <Bell className="w-5 h-5 text-white/70" />
+                  {activityCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-dark-bg">
+                      {activityCount > 99 ? '99+' : activityCount}
+                    </span>
+                  )}
+                </button>
+
                 <button 
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                   className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-rose-500 p-[2px] transition-transform hover:scale-105 shadow-lg shadow-rose-500/20"
@@ -161,13 +188,23 @@ export function TopNav() {
             )}
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button 
-            className="md:hidden p-2 text-white"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          {/* Mobile Menu Toggle + Activity Bell */}
+          <div className="flex md:hidden items-center gap-2">
+            <button className="relative p-2">
+              <Bell className="w-5 h-5 text-white/70" />
+              {activityCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-rose-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-dark-bg">
+                  {activityCount > 99 ? '99+' : activityCount}
+                </span>
+              )}
+            </button>
+            <button 
+              className="p-2 text-white"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
       </nav>
 
