@@ -105,13 +105,7 @@ export function Home() {
 
   return (
     <div className="w-full">
-      {/* TEST TOAST BUTTON — remove after verifying */}
-      <button
-        onClick={() => showToast("It's alive! Toast works perfectly.", "success")}
-        className="absolute top-24 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-full shadow-lg"
-      >
-        Test Toast
-      </button>
+      
 
       {/* HERO SECTION */}
       <section className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 text-center overflow-hidden">
