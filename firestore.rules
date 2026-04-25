@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name']) &&
+             data.name is string && data.name.size() > 0 &&
+             (data.keys().hasAll(['email']) ? (data.email is string && data.email.size() > 0) : true) &&
+             (data.keys().hasAll(['avatarUrl']) ? (data.avatarUrl is string && data.avatarUrl.size() <= 1000) : true) &&
+             (data.keys().hasAll(['bio']) ? (data.bio is string && data.bio.size() <= 2000) : true) &&
+             (data.keys().hasAll(['mood']) ? (data.mood is string && data.mood.size() <= 50) : true) &&
+             (data.keys().hasAll(['position']) ? (data.position is string && data.position.size() <= 100) : true);
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll(['title', 'description', 'createdBy', 'status', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.createdBy is string && data.createdBy.size() > 0 &&
+             data.status is string && (data.status == 'pending' || data.status == 'accepted') &&
+             (data.keys().hasAll(['targetAmount']) ? (data.targetAmount is number) : true) &&
+             (data.keys().hasAll(['currentAmount']) ? (data.currentAmount is number) : true) &&
+             (data.keys().hasAll(['targetDate']) ? (data.targetDate is string && data.targetDate.size() <= 50) : true) &&
+             data.createdAt is number;
+    }
+
+    function isValidGift(data) {
+      return data.keys().hasAll(['senderId', 'receiverId', 'itemId', 'message', 'isRead', 'createdAt']) &&
+             data.senderId is string && data.senderId.size() > 0 &&
+             data.receiverId is string && data.receiverId.size() > 0 &&
+             data.itemId is string && data.itemId.size() > 0 && data.itemId.size() <= 100 &&
+             data.message is string && data.message.size() <= 500 &&
+             data.isRead is bool &&
+             data.createdAt is number;
+    }
+
+    function isValidMeeting(data) {
+      return data.keys().hasAll(['title', 'description', 'type', 'date', 'createdBy', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.type is string && (data.type == 'trip' || data.type == 'meeting') &&
+             data.date is string && data.date.size() > 0 && data.date.size() <= 50 &&
+             data.createdBy is string && data.createdBy.size() > 0 &&
+             data.createdAt is number;
+    }
+
+    function isValidContribution(data) {
+      return data.keys().hasAll(['amount', 'personId', 'createdAt']) &&
+             data.amount is number &&
+             data.personId is string && data.personId.size() > 0 &&
+             (data.keys().hasAll(['note']) ? (data.note is string && data.note.size() <= 500) : true) &&
+             data.createdAt is number;
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['content', 'authorId', 'createdAt']) &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
+             data.authorId is string && data.authorId.size() > 0 &&
+             data.createdAt is number;
+    }
+
+    match /users/{userId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && incoming().keys().size() <= 6;
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'avatarUrl', 'bio', 'mood', 'position']);
+    }
+
+    match /goals/{goalId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(goalId);
+      allow create: if isSignedIn() && isValidId(goalId) && isValidGoal(incoming());
+      allow update: if isSignedIn() && isValidId(goalId) && isValidGoal(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'targetAmount', 'currentAmount', 'targetDate', 'status']);
+      allow delete: if isSignedIn() && isValidId(goalId);
+    }
+
+    match /contributions/{contributionId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(contributionId);
+      allow create: if isSignedIn() && isValidId(contributionId) && isValidContribution(incoming());
+      allow update: if false; // contributions are immutable
+      allow delete: if isSignedIn() && isValidId(contributionId);
+    }
+
+    match /notes/{noteId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(noteId);
+      allow create: if isSignedIn() && isValidId(noteId) && isValidNote(incoming());
+      allow update: if isSignedIn() && isValidId(noteId) && isValidNote(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['content']);
+      allow delete: if isSignedIn() && isValidId(noteId);
+    }
+
+    match /gifts/{giftId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(giftId);
+      allow create: if isSignedIn() && isValidId(giftId) && isValidGift(incoming());
+      allow update: if isSignedIn() && isValidId(giftId) && isValidGift(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isSignedIn() && isValidId(giftId);
+    }
+
+    match /meetings/{meetingId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(meetingId);
+      allow create: if isSignedIn() && isValidId(meetingId) && isValidMeeting(incoming());
+      allow update: if isSignedIn() && isValidId(meetingId) && isValidMeeting(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'type', 'date']);
+      allow delete: if isSignedIn() && isValidId(meetingId);
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "bio": { "type": "string" },
+        "mood": { "type": "string" },
+        "position": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "A shared goal.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "targetAmount": { "type": "number" },
+        "currentAmount": { "type": "number" },
+        "targetDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["title", "description", "status", "createdBy", "createdAt"]
+    },
+    "Gift": {
+      "title": "Gift",
+      "description": "A virtual gift sent between partners.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["senderId", "receiverId", "itemId", "message", "isRead", "createdAt"]
+    },
+    "Meeting": {
+      "title": "Meeting / Trip",
+      "description": "An upcoming meeting or trip planned together.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["meeting", "trip"] },
+        "date": { "type": "string", "description": "ISO date string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["title", "description", "type", "date", "createdBy", "createdAt"]
+    },
+    "Contribution": {
+      "title": "Contribution",
+      "description": "A financial contribution.",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "personId": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["amount", "personId", "createdAt"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A shared memory note.",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["content", "authorId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles. Using Google Auth, we create a user document on login."
+    },
+    "goals/{goalId}": {
+      "schema": { "$ref": "#/entities/Goal" },
+      "description": "List of shared goals."
+    },
+    "contributions/{contributionId}": {
+      "schema": { "$ref": "#/entities/Contribution" },
+      "description": "List of contributions towards goals or general pool."
+    },
+    "gifts/{giftId}": {
+      "schema": { "$ref": "#/entities/Gift" },
+      "description": "List of virtual gifts sent."
+    },
+    "meetings/{meetingId}": {
+      "schema": { "$ref": "#/entities/Meeting" },
+      "description": "List of planned meetings and trips together."
+    },
+    "notes/{noteId}": {
+      "schema": { "$ref": "#/entities/Note" },
+      "description": "List of shared notes."
+    }
+  }
+}
