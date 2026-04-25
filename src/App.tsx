@@ -9,6 +9,7 @@ import { TopNav } from './components/TopNav';
 import { GlobalFAB } from './components/GlobalFAB';
 import { GlobalGifts } from './components/GlobalGifts';
 import { CherryBlossoms } from './components/CherryBlossoms';
+import { ToastProvider } from './context/ToastContext';   // ← ADD THIS
 import { Splash } from './pages/Splash';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
@@ -27,7 +28,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TopNav />
-      {/* We use pt-32 to offset the fixed 80px high top nav plus margin */}
       <div className="pt-32 min-h-screen">
         {children}
       </div>
@@ -59,7 +59,6 @@ function MainRoutes() {
           <Route path="/dashboard" element={<Navigate to="/home" replace />} />
         </Routes>
       </AnimatePresence>
-      {/* Show Gifts Button only when logged in - can do a check inside GlobalGifts */}
       <GlobalGifts />
     </>
   );
@@ -69,7 +68,9 @@ export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <MainRoutes />
+        <ToastProvider>      {/* ← ADD THIS */}
+          <MainRoutes />
+        </ToastProvider>     {/* ← ADD THIS */}
       </BrowserRouter>
     </AppProvider>
   );
