@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '../firebase';
+import { auth, db, logActivity } from '../firebase';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, onSnapshot, query, addDoc, updateDoc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
+import { useToast } from '../context/ToastContext';
 
 export type User = {
-  id: string; // will map to uid
+  id: string;
   name: string;
   email?: string;
   avatarUrl?: string;
@@ -92,6 +93,7 @@ interface AppContextType extends AppState {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { showToast } = useToast();
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -102,10 +104,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [birthdayUnlocked, setBirthdayUnlocked] = useState(false);
 
+  // helper to safely get partner's name
+  const partnerName = () => {
+    const partner = users.find(u => u.id !== currentUser?.id);
+    return partner?.name || 'your queen';
+  };
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Fetch or create user in Firestore
         try {
           const userRef = doc(db, 'users', firebaseUser.uid);
           const snap = await getDoc(userRef);
@@ -121,7 +128,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             await setDoc(userRef, newUser);
           }
           
-          // Users listener
           const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
             const usersData: User[] = [];
             snapshot.forEach(d => {
@@ -133,35 +139,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setIsLoaded(true);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
 
-          // Goals listener
           const unsubGoals = onSnapshot(query(collection(db, 'goals'), orderBy('createdAt', 'desc')), (snapshot) => {
             const g: Goal[] = [];
             snapshot.forEach(d => g.push({ id: d.id, ...d.data() } as Goal));
             setGoals(g);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'goals'));
 
-          // Notes listener
           const unsubNotes = onSnapshot(query(collection(db, 'notes'), orderBy('createdAt', 'desc')), (snapshot) => {
             const n: Note[] = [];
             snapshot.forEach(d => n.push({ id: d.id, ...d.data() } as Note));
             setNotes(n);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'notes'));
 
-          // Contributions listener
           const unsubContribs = onSnapshot(query(collection(db, 'contributions'), orderBy('createdAt', 'desc')), (snapshot) => {
             const c: Contribution[] = [];
             snapshot.forEach(d => c.push({ id: d.id, ...d.data() } as Contribution));
             setContributions(c);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'contributions'));
 
-          // Gifts listener
           const unsubGifts = onSnapshot(query(collection(db, 'gifts'), orderBy('createdAt', 'desc')), (snapshot) => {
             const g: Gift[] = [];
             snapshot.forEach(d => g.push({ id: d.id, ...d.data() } as Gift));
             setGifts(g);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'gifts'));
 
-          // Meetings listener
           const unsubMeetings = onSnapshot(query(collection(db, 'meetings'), orderBy('date', 'asc')), (snapshot) => {
             const m: Meeting[] = [];
             snapshot.forEach(d => m.push({ id: d.id, ...d.data() } as Meeting));
@@ -216,17 +217,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const userRef = doc(db, 'users', currentUser.id);
       await updateDoc(userRef, updates);
+      showToast('Profile updated', 'success');
+      await logActivity(
+        'profile_update',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} updated their profile`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `users/${currentUser.id}`);
     }
   };
 
   const addGoal = async (goal: Omit<Goal, 'id' | 'createdAt'>) => {
+    if (!currentUser) return;
     try {
       await addDoc(collection(db, 'goals'), {
         ...goal,
         createdAt: Date.now()
       });
+      showToast('Goal created! 🎯', 'success');
+      await logActivity(
+        'goal_created',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} proposed a goal: ${goal.title}`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'goals');
     }
@@ -235,6 +253,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateGoal = async (id: string, updates: Partial<Goal>) => {
     try {
       await updateDoc(doc(db, 'goals', id), updates);
+      if (updates.status === 'accepted') {
+        showToast('Goal accepted! 💖', 'success');
+        if (currentUser) {
+          const goal = goals.find(g => g.id === id);
+          await logActivity(
+            'goal_accepted',
+            currentUser.id,
+            currentUser.name,
+            partnerName(),
+            `${currentUser.name} accepted the goal: ${goal?.title || 'a goal'}`
+          );
+        }
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `goals/${id}`);
     }
@@ -243,28 +274,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteGoal = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'goals', id));
+      showToast('Goal deleted', 'info');
+      if (currentUser) {
+        const goal = goals.find(g => g.id === id);
+        await logActivity(
+          'goal_deleted',
+          currentUser.id,
+          currentUser.name,
+          partnerName(),
+          `${currentUser.name} deleted the goal: ${goal?.title || 'a goal'}`
+        );
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `goals/${id}`);
     }
   }
 
   const addContribution = async (contribution: Omit<Contribution, 'id' | 'createdAt'>) => {
+    if (!currentUser) return;
     try {
       await addDoc(collection(db, 'contributions'), {
         ...contribution,
         createdAt: Date.now()
       });
+      showToast('Contribution added! 💰', 'success');
+      await logActivity(
+        'contribution_added',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} added a contribution of ${contribution.amount} FCFA`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'contributions');
     }
   };
 
   const addNote = async (note: Omit<Note, 'id' | 'createdAt'>) => {
+    if (!currentUser) return;
     try {
       await addDoc(collection(db, 'notes'), {
         ...note,
         createdAt: Date.now()
       });
+      showToast('Memory saved 💌', 'success');
+      await logActivity(
+        'note_added',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} wrote a new memory`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'notes');
     }
@@ -273,17 +333,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteNote = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'notes', id));
+      showToast('Note deleted', 'info');
+      if (currentUser) {
+        await logActivity(
+          'note_deleted',
+          currentUser.id,
+          currentUser.name,
+          partnerName(),
+          `${currentUser.name} deleted a memory`
+        );
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `notes/${id}`);
     }
   }
 
   const addGift = async (gift: Omit<Gift, 'id' | 'createdAt'>) => {
+    if (!currentUser) return;
     try {
       await addDoc(collection(db, 'gifts'), {
         ...gift,
         createdAt: Date.now()
       });
+      // Toast is handled inside GlobalGifts.tsx, but we can still log
+      showToast('Gift sent! 🎁', 'success');
+      await logActivity(
+        'gift_sent',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} sent a gift to ${partnerName()}`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'gifts');
     }
@@ -298,11 +378,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addMeeting = async (meeting: Omit<Meeting, 'id' | 'createdAt'>) => {
+    if (!currentUser) return;
     try {
       await addDoc(collection(db, 'meetings'), {
         ...meeting,
         createdAt: Date.now()
       });
+      showToast('Meeting scheduled 📅', 'success');
+      await logActivity(
+        'meeting_scheduled',
+        currentUser.id,
+        currentUser.name,
+        partnerName(),
+        `${currentUser.name} scheduled a ${meeting.type}: ${meeting.title}`
+      );
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'meetings');
     }
@@ -310,7 +399,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteMeeting = async (id: string) => {
     try {
+      const meeting = meetings.find(m => m.id === id);
       await deleteDoc(doc(db, 'meetings', id));
+      showToast('Meeting removed', 'info');
+      if (currentUser && meeting) {
+        await logActivity(
+          'meeting_deleted',
+          currentUser.id,
+          currentUser.name,
+          partnerName(),
+          `${currentUser.name} removed the meeting: ${meeting.title}`
+        );
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `meetings/${id}`);
     }
@@ -319,6 +419,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const unlockBirthday = (password: string) => {
     if (password === 'forever' || password === 'iloveyou') {
       setBirthdayUnlocked(true);
+      showToast('Birthday unlocked! 🎂', 'success');
+      if (currentUser) {
+        logActivity(
+          'birthday_unlocked',
+          currentUser.id,
+          currentUser.name,
+          partnerName(),
+          `${currentUser.name} unlocked the birthday page`
+        );
+      }
       return true;
     }
     return false;
@@ -347,4 +457,3 @@ export const useAppContext = () => {
   if (!context) throw new Error("useAppContext must be used within AppProvider");
   return context;
 };
-
