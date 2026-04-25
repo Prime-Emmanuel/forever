@@ -9,7 +9,7 @@ import { TopNav } from './components/TopNav';
 import { GlobalFAB } from './components/GlobalFAB';
 import { GlobalGifts } from './components/GlobalGifts';
 import { CherryBlossoms } from './components/CherryBlossoms';
-import { ToastProvider } from './context/ToastContext';   // ← ADD THIS
+import { ToastProvider } from './context/ToastContext';
 import { Splash } from './pages/Splash';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
@@ -66,12 +66,12 @@ function MainRoutes() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
-        <ToastProvider>      {/* ← ADD THIS */}
+    <BrowserRouter>
+      <ToastProvider>
+        <AppProvider>
           <MainRoutes />
-        </ToastProvider>     {/* ← ADD THIS */}
-      </BrowserRouter>
-    </AppProvider>
+        </AppProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
