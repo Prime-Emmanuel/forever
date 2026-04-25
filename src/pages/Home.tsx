@@ -4,10 +4,12 @@ import { motion } from 'motion/react';
 import { Heart, Compass, WalletCards, ArrowRight, Sparkles, Image as ImageIcon, Star, Clock, CalendarDays } from 'lucide-react';
 import { Link } from 'react-router';
 import { format, differenceInMonths, differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds } from 'date-fns';
+import { useToast } from '../context/ToastContext';
 
 export function Home() {
   const { currentUser, goals, notes, contributions, users } = useAppContext();
-  
+  const { showToast } = useToast();
+
   const partner = users.find(u => u.id !== currentUser?.id);
   const totalSavings = contributions.reduce((acc, c) => acc + c.amount, 0);
 
@@ -29,7 +31,7 @@ export function Home() {
     "What's one thing I do that always makes you smile without fail?",
     "If we could go anywhere right now, where would it be and why?",
     "What song reminds you of us and why?",
-    "What’s your favorite physical feature of mine?",
+    "What's your favorite physical feature of mine?",
     "Describe our perfect lazy Sunday together.",
   ];
   
@@ -103,6 +105,14 @@ export function Home() {
 
   return (
     <div className="w-full">
+      {/* TEST TOAST BUTTON — remove after verifying */}
+      <button
+        onClick={() => showToast("It's alive! Toast works perfectly.", "success")}
+        className="absolute top-24 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-full shadow-lg"
+      >
+        Test Toast
+      </button>
+
       {/* HERO SECTION */}
       <section className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 text-center overflow-hidden">
         {/* Background Decorative Rings */}
@@ -427,7 +437,7 @@ export function Home() {
               <div className="w-full min-w-[300px] md:min-w-[600px] p-16 rounded-[2.5rem] border border-dashed border-white/20 flex flex-col items-center justify-center text-center">
                 <Compass className="text-neutral-600 mb-6" size={48} />
                 <p className="text-2xl font-serif text-neutral-400 mb-2">No goals set for now.</p>
-                <p className="text-neutral-500">Click ‘View All Dreams’ to start proposing goals.</p>
+                <p className="text-neutral-500">Click 'View All Dreams' to start proposing goals.</p>
               </div>
             ) : (
               goals.filter(g => g.status === 'accepted' || !g.status).map((goal, i) => {
