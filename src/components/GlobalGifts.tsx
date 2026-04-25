@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Gift, X, Send } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
+import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
@@ -20,34 +21,49 @@ const GIFT_ITEMS = [
 
 export function GlobalGifts() {
   const { gifts, currentUser, users, addGift, markGiftAsRead } = useAppContext();
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'received' | 'send'>('received');
-  
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   if (!currentUser) return null;
 
   const partner = users.find(u => u.id !== currentUser.id);
+
+  // If partner is not found or somehow the same as current user, do not allow sending
+  const canSend = partner && partner.id !== currentUser.id;
+
   const receivedGifts = gifts.filter(g => g.receiverId === currentUser.id);
   const unreadCount = receivedGifts.filter(g => !g.isRead).length;
 
   const handleSend = async () => {
-    if (!selectedItem || !message.trim() || !partner) return;
-    await addGift({
-      senderId: currentUser.id,
-      receiverId: partner.id,
-      itemId: selectedItem,
-      message: message.trim(),
-      isRead: false
-    });
-    setSelectedItem('');
-    setMessage('');
-    setActiveTab('received');
+    if (!selectedItem || !message.trim() || !canSend || isSending) return;
+
+    setIsSending(true);
+    try {
+      await addGift({
+        senderId: currentUser.id,
+        receiverId: partner!.id,
+        itemId: selectedItem,
+        message: message.trim(),
+        isRead: false,
+      });
+      showToast('Gift sent! 🎁', 'success');
+      setSelectedItem('');
+      setMessage('');
+      setActiveTab('received');
+    } catch (error) {
+      showToast('Failed to send gift. Please try again.', 'error');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const openGifts = () => {
     setIsOpen(true);
+    // Mark all received unread gifts as read
     receivedGifts.filter(g => !g.isRead).forEach(g => {
       markGiftAsRead(g.id);
     });
@@ -111,7 +127,7 @@ export function GlobalGifts() {
                     {receivedGifts.length === 0 ? (
                       <div className="text-center py-10 text-neutral-400">
                         <Gift className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                        <p>No gifts yet. Tell {partner?.name || 'your partner'} to send you something sweet!</p>
+                        <p>No gifts yet. Tell your queen to send you something sweet!</p>
                       </div>
                     ) : (
                       receivedGifts.map(gift => {
@@ -166,11 +182,23 @@ export function GlobalGifts() {
                     </div>
                     <button
                       onClick={handleSend}
-                      disabled={!selectedItem || !message.trim()}
+                      disabled={!selectedItem || !message.trim() || !canSend || isSending}
                       className="w-full bg-rose-500 text-white rounded-xl py-4 font-medium flex items-center justify-center gap-2 hover:bg-rose-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Send size={18} /> Send to {partner?.name || 'Partner'}
+                      {isSending ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Sending...
+                        </span>
+                      ) : (
+                        <>
+                          <Send size={18} /> Send to My Queen
+                        </>
+                      )}
                     </button>
+                    {!canSend && (
+                      <p className="text-xs text-red-400 text-center mt-2">Unable to send – partner profile not loaded yet.</p>
+                    )}
                   </div>
                 )}
               </div>
