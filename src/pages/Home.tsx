@@ -4,12 +4,11 @@ import { motion } from 'motion/react';
 import { Heart, Compass, WalletCards, ArrowRight, Sparkles, Image as ImageIcon, Star, Clock, CalendarDays } from 'lucide-react';
 import { Link } from 'react-router';
 import { format, differenceInMonths, differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds } from 'date-fns';
-import { useToast } from '../context/ToastContext';
+import { PartnerStatusCard } from '../components/PartnerStatusCard';
 
 export function Home() {
   const { currentUser, goals, notes, contributions, users } = useAppContext();
-  const { showToast } = useToast();
-
+  
   const partner = users.find(u => u.id !== currentUser?.id);
   const totalSavings = contributions.reduce((acc, c) => acc + c.amount, 0);
 
@@ -105,8 +104,6 @@ export function Home() {
 
   return (
     <div className="w-full">
-      
-
       {/* HERO SECTION */}
       <section className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 text-center overflow-hidden">
         {/* Background Decorative Rings */}
@@ -163,6 +160,13 @@ export function Home() {
           <div className="w-[1px] h-16 bg-gradient-to-b from-transparent via-white/50 to-transparent mx-auto" />
         </motion.div>
       </section>
+
+      {/* PARTNER STATUS CARD (NEW) */}
+      {partner && (
+        <div className="max-w-md mx-auto px-6 -mt-10 relative z-20">
+          <PartnerStatusCard partner={partner} />
+        </div>
+      )}
 
       {/* NEW SECTION: TIMELINE & COUNTER */}
       <section className="py-12 md:py-20 px-6 max-w-7xl mx-auto relative z-20">
